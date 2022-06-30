@@ -32,67 +32,64 @@ public class AnalyzeService {
 	private ArrayList<String> postMappingMethodsList = new ArrayList<>();
 	private ArrayList<String> getMappingMethodsList = new ArrayList<>();
 	private String path;
+	private String result;
+	private boolean pushOnDocker = false;
 	
 	public String start(String projectPath) {
 		
-		String result = "";
+		this.result = "";
 		this.path = projectPath;
-		System.out.println(path);
 		
 		File pomFile = new File(path + "\\pom.xml");
 		File dockerFile = new File(path + "\\Dockerfile");
 		
 		// Checks if there is the pom.xml file in the project's root directory
 		if(pomFile.exists() && !pomFile.isDirectory()) {
-			
-			//System.out.println("pom.xml file found");
-			result += "pom.xml file found\n";
+			this.result += "pom.xml file found, ";
 			
 			// Checks if pom.xml file has dependencies of a Spring Project 
 			boolean temp = this.checkDependencies(pomFile);
 			if(temp) {
-				//System.out.println("pom.xml has Spring's dependencies");
-				result += "pom.xml has Spring's dependencies\n";
+				this.result += "pom.xml has Spring's dependencies, ";
 				if(this.isRestApi(path)) { 
-					//System.out.println("Spring project is a Rest API");
-					result += "Spring project is a Rest API\n";
+					this.result += "Spring project is a Rest API, ";
+					this.pushOnDocker = true;
 				}
 				// Checks if there is the Docker file in the project's root directory
 				if(dockerFile.exists() && !dockerFile.isDirectory()) {
-					//System.out.println("Dockerfile found");
-					result += "Dockerfile found\n";
+					this.result += "Dockerfile found, ";
 				}
 				else {
-					//System.out.println("Dockerfile doesn't exist");
-					result += "Dockerfile doesn't exist\n";
+					this.result += "Dockerfile doesn't exist, ";
 					String javaVersion = this.findNode(pomFile,"java.version", "properties");
 					String name = this.findNode(pomFile, "name", "project");
 					String version = this.findNode(pomFile, "version", "project");
 					this.createDockerFile(javaVersion, name, version);
+					this.result += "Dockerfile created, ";
 				}
 			}
 			else {
 				//System.out.println("pom.xml hasn't Spring's dependencies");
-				result += "pom.xml hasn't Spring's dependencies\n";
+				this.result += "pom.xml hasn't Spring's dependencies, ";
 			}		
 		}
 		else {
 			//System.out.println("pom.xml file doesn't exist");
-			result += "pom.xml file doesn't exist\n";
+			this.result += "pom.xml file doesn't exist, ";
 		}
 		
-		//
-		
-		System.out.println(result);
+		System.out.println(this.result);
+		this.result += "Post Mapping Methods List, ";
 		System.out.println("Post Mapping Methods List");
-		this.printPostList();
+		this.result += this.printPostList();
+		this.result += "Get Mapping Methods List, ";
 		System.out.println("Get Mapping Methods List");
-		this.printGetList();
+		this.result += this.printGetList();
 		
 		//Emptying Lists
 		this.postMappingMethodsList.clear();
 		this.getMappingMethodsList.clear();
-		return result;
+		return this.result;
 	}
 	
 	private void createDockerFile(String javaVersion, String name, String version) {
@@ -106,13 +103,13 @@ public class AnalyzeService {
 				dockerFileText += "FROM adoptopenjdk:11-jre-hotspot\n";
 				break;
 			default :
+				this.result += "Java version not supported, ";
 				System.exit(0);
 				break;
 		}
 		dockerFileText += "ADD target/" + name + "-" + version + ".jar app.jar\n";
 		dockerFileText += "RUN chmod 755 app.jar\n";
 		
-		System.out.println("=====================");
 		File rootFolder = new File(this.path);
 		for(File file : rootFolder.listFiles()){
 			String fileName = file.getName();
@@ -124,13 +121,10 @@ public class AnalyzeService {
 				}
 				dockerFileText += "755 /" + fileName + "\n";
 			}
-		}	
-		System.out.println("=====================");
+		}
 		
 		
 		dockerFileText += "ENTRYPOINT [\"java\", \"-jar\", \"/app.jar\"]";
-		
-		System.out.println("DockerFile Text : \n" + dockerFileText);
 		
 		this.storeDockerFile(dockerFileText);
 	}
@@ -248,14 +242,23 @@ public class AnalyzeService {
 		if(matcher.find()) list.add(matcher.group());
 	}
 	
-	private void printPostList() {
-		for(String s : this.postMappingMethodsList)
+	private String printPostList() {
+		String names = "";
+		for(String s : this.postMappingMethodsList) {
+			names += s + ", ";
 			System.out.println(s);
+		}
+		return names;
 	}
 	
-	private void printGetList() {
-		for(String s : this.getMappingMethodsList)
+	private String printGetList() {
+		String names = "";
+		for(String s : this.getMappingMethodsList) {
+			names += s + ", ";
 			System.out.println(s);
+		}
+		
+		return names;
 	}
 	
 	//Find files with a specified file extension
@@ -302,11 +305,14 @@ public class AnalyzeService {
 			flag = groupIds.contains("org.springframework.boot");
 
 		} catch (ParserConfigurationException|SAXException|IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} 
 		
 		return flag;
+	}
+	
+	public boolean pushOnDocker() {
+		return this.pushOnDocker;
 	}
 	
 }
