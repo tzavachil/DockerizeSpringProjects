@@ -9,6 +9,8 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -26,10 +28,14 @@ import org.xml.sax.SAXException;
 @Service
 public class AnalyzeService {
 
-	public String print() {
+	private ArrayList<String> postMappingMethodsList = new ArrayList<>();
+	private ArrayList<String> getMappingMethodsList = new ArrayList<>();
+	
+	public String start(String projectPath) {
 		
 		String result = "";
-		String path = "D:\\Programming\\Eclipse 2021 Projects\\smartclide-TD-Principal-main - Copy";
+		String path = projectPath;
+		System.out.println(path);
 		
 		File pomFile = new File(path + "\\pom.xml");
 		File dockerFile = new File(path + "\\Dockerfile");
@@ -70,6 +76,13 @@ public class AnalyzeService {
 		}
 		
 		System.out.println(result);
+		System.out.println("Post Mapping Methods List");
+		this.printPostList();
+		System.out.println("Get Mapping Methods List");
+		this.printGetList();
+		//Emptying Lists
+		this.postMappingMethodsList.clear();
+		this.getMappingMethodsList.clear();
 		return result;
 	}
 	
@@ -84,13 +97,9 @@ public class AnalyzeService {
 			File tempFile;
 			for(String filePath : files) {
 				 tempFile = new File(filePath);
-				 //hasRestController = this.hasRestController(tempFile);
-				 hasRestController = this.hasTextAndRegex(tempFile,"@RestController","^\\s*(public class " + tempFile.getName().replace(".java","") + ")\\s*\\{");
-				 hasPostMapping = this.hasTextAndRegex(tempFile, "@PostMapping", "^\\s*(public )(.*)");
-				 hasGetMapping = this.hasTextAndRegex(tempFile, "@GetMapping", "^\\s*(public )(.*)");
-				 System.out.println(hasRestController);
-				 System.out.println(hasPostMapping);
-				 System.out.println(hasGetMapping);
+				 hasRestController = this.hasTextAndRegex(tempFile,"@RestController","^\\s*(public class " + tempFile.getName().replace(".java","") + ")\\s*\\{", null);
+				 hasPostMapping = this.hasTextAndRegex(tempFile, "@PostMapping", "^\\s*(public )(.*)", this.postMappingMethodsList);
+				 hasGetMapping = this.hasTextAndRegex(tempFile, "@GetMapping", "^\\s*(public )(.*)", this.getMappingMethodsList);
 				 if (hasRestController && (hasPostMapping || hasGetMapping)) break;
 			}
 			
@@ -101,7 +110,12 @@ public class AnalyzeService {
 		return hasRestController && (hasPostMapping || hasGetMapping);
 	}
 	
-	private boolean hasTextAndRegex(File file, String text, String regex) {
+	/* Search in a file if there is a certain text and then if there is a line
+	 * that match the regular expression. If the ArrayList list isn't nul it stores methods's
+	 * names of type text into list */
+	private boolean hasTextAndRegex(File file, String text, String regex, ArrayList<String> list) {
+		boolean returnable = false;
+		
 		boolean flag = false;
 		
 		boolean foundRegexLine = false;
@@ -114,18 +128,41 @@ public class AnalyzeService {
 		        currLine = scanner.nextLine();
 		        if(flag) {
 		        	foundRegexLine = currLine.toLowerCase().matches(regex);
-		        	if(foundRegexLine) break;
+		        	if(foundRegexLine) {
+		        		returnable = true;
+		        		if(list != null) {
+		        			this.storeMethodsNames(currLine, list);
+			        		foundRegexLine = false;
+			        		flag = false;
+		        		}
+		        		else break;
+		        	}
 		        }
-		    	if(currLine.contains(text) && currLine.matches("^\\s*" + text) && !flag) {	
+		    	if(currLine.contains(text) && currLine.matches("^\\s*" + text + "(.*)")) {	
 		    		flag = true;
 		    	}
-		    		
 		    }
 		} catch(FileNotFoundException e) { 
 		    e.printStackTrace();
 		}
 		
-		return flag && foundRegexLine;
+		return returnable;
+	}
+	
+	private void storeMethodsNames(String line, ArrayList<String> list) {
+		Pattern pattern = Pattern.compile("[^ ]*\\ *\\((.*)\\)");
+		Matcher matcher = pattern.matcher(line);
+		if(matcher.find()) list.add(matcher.group());
+	}
+	
+	private void printPostList() {
+		for(String s : this.postMappingMethodsList)
+			System.out.println(s);
+	}
+	
+	private void printGetList() {
+		for(String s : this.getMappingMethodsList)
+			System.out.println(s);
 	}
 	
 	//Find files with a specified file extension
