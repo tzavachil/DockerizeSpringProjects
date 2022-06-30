@@ -84,9 +84,13 @@ public class AnalyzeService {
 			File tempFile;
 			for(String filePath : files) {
 				 tempFile = new File(filePath);
-				 hasRestController = this.contains(tempFile, "@RestController");
-				 hasPostMapping = this.contains(tempFile, "@PostMapping");
-				 hasGetMapping = this.contains(tempFile, "@GetMapping");
+				 //hasRestController = this.hasRestController(tempFile);
+				 hasRestController = this.hasTextAndRegex(tempFile,"@RestController","^\\s*(public class " + tempFile.getName().replace(".java","") + ")\\s*\\{");
+				 hasPostMapping = this.hasTextAndRegex(tempFile, "@PostMapping", "^\\s*(public )(.*)");
+				 hasGetMapping = this.hasTextAndRegex(tempFile, "@GetMapping", "^\\s*(public )(.*)");
+				 System.out.println(hasRestController);
+				 System.out.println(hasPostMapping);
+				 System.out.println(hasGetMapping);
 				 if (hasRestController && (hasPostMapping || hasGetMapping)) break;
 			}
 			
@@ -94,25 +98,34 @@ public class AnalyzeService {
 			e.printStackTrace();
 		}
 		
-		
 		return hasRestController && (hasPostMapping || hasGetMapping);
 	}
 	
-	private boolean contains(File file, String text) {
+	private boolean hasTextAndRegex(File file, String text, String regex) {
 		boolean flag = false;
+		
+		boolean foundRegexLine = false;
 		
 		try(Scanner scanner = new Scanner(file)) {
 
 		    //now read the file line by line...
+			String currLine;
 		    while (scanner.hasNextLine()) {
-		        if(scanner.nextLine().contains(text))
-		        	flag = true;
+		        currLine = scanner.nextLine();
+		        if(flag) {
+		        	foundRegexLine = currLine.toLowerCase().matches(regex);
+		        	if(foundRegexLine) break;
+		        }
+		    	if(currLine.contains(text) && currLine.matches("^\\s*" + text) && !flag) {	
+		    		flag = true;
+		    	}
+		    		
 		    }
 		} catch(FileNotFoundException e) { 
 		    e.printStackTrace();
 		}
 		
-		return flag;
+		return flag && foundRegexLine;
 	}
 	
 	//Find files with a specified file extension
