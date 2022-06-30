@@ -2,6 +2,7 @@ package gr.achilleas.ProjectAnalyzer.Analyze;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,11 +31,12 @@ public class AnalyzeService {
 
 	private ArrayList<String> postMappingMethodsList = new ArrayList<>();
 	private ArrayList<String> getMappingMethodsList = new ArrayList<>();
+	private String path;
 	
 	public String start(String projectPath) {
 		
 		String result = "";
-		String path = projectPath;
+		this.path = projectPath;
 		System.out.println(path);
 		
 		File pomFile = new File(path + "\\pom.xml");
@@ -56,13 +58,17 @@ public class AnalyzeService {
 					result += "Spring project is a Rest API\n";
 				}
 				// Checks if there is the Docker file in the project's root directory
-				if(dockerFile.exists() && !dockerFile.isDirectory()) {
+				if(false){//dockerFile.exists() && !dockerFile.isDirectory()) {
 					//System.out.println("Dockerfile found");
 					result += "Dockerfile found\n";
 				}
 				else {
 					//System.out.println("Dockerfile doesn't exist");
 					result += "Dockerfile doesn't exist\n";
+					String javaVersion = this.findNode(pomFile,"java.version", "properties");
+					String name = this.findNode(pomFile, "name", "project");
+					String version = this.findNode(pomFile, "version", "project");
+					this.createDockerFile(javaVersion, name, version);
 				}
 			}
 			else {
@@ -86,11 +92,96 @@ public class AnalyzeService {
 		return result;
 	}
 	
+	private void createDockerFile(String javaVersion, String name, String version) {
+		String dockerFileText = "";
+		
+		switch(javaVersion) {
+			case "1.8":
+				dockerFileText += "FROM openjdk:8-jdk-alpine\n";
+				break;
+			case "11":
+				dockerFileText += "FROM adoptopenjdk:11-jre-hotspot\n";
+				break;
+			default :
+				System.exit(0);
+				break;
+		}
+		dockerFileText += "ADD target/" + name + "-" + version + ".jar app.jar\n";
+		Path jarFolderPath = Paths.get(path + "\\jars");
+		if(Files.exists(jarFolderPath)) {
+			try {
+				List<String> jars = this.findFiles(jarFolderPath, "jar");
+				for(String s : jars) {
+					String[] tempList = s.split(Pattern.quote("\\"));
+					dockerFileText += "ADD jars/" + tempList[tempList.length-1] + " " + tempList[tempList.length-1] + "\n";
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		dockerFileText += "ENDPOINT [\"java\", \"-jar\", \"/app.jar\"]";
+		
+		System.out.println("DockerFile Text : \n" + dockerFileText);
+		
+		this.storeDockerFile(dockerFileText, name);
+	}
+	
+	private void storeDockerFile(String text, String analyzedProjectName) {
+		String rootFolder = System.getProperty("user.dir");
+		
+		// Create folder to store DockerFiles
+		File dockerFilesFolder = new File(rootFolder + "/DockerFiles");
+		if(!Files.exists(Paths.get(rootFolder + "/DockerFiles"))) {
+			dockerFilesFolder.mkdir();
+		}
+		// Create subfolder specifically for this dockerfile
+		File dockerFileSubfolder = new File(rootFolder + "/DockerFiles/" + analyzedProjectName);
+		if(!Files.exists(Paths.get(rootFolder + "/DockerFiles/" + analyzedProjectName))){
+			dockerFileSubfolder.mkdir();
+		}
+		
+		// Create and store the dockerfile
+		try {
+			File dockerFile = new File(rootFolder + "/DockerFiles/" + analyzedProjectName + "/Dockerfile");
+			if(dockerFile.createNewFile()) {
+				FileWriter writer = new FileWriter(rootFolder + "/DockerFiles/" + analyzedProjectName + "/Dockerfile");
+				writer.write(text);
+				writer.close();
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+	}
+	
+	private String findNode(File pomFile, String nodeId, String parentId) {
+		String nodeContent = null;
+		
+		try {
+			
+			DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+			DocumentBuilder dbBuilder = dbFactory.newDocumentBuilder();
+			Document doc = dbBuilder.parse(pomFile);
+			doc.getDocumentElement().normalize();
+			NodeList dep = doc.getElementsByTagName(nodeId);
+			for(int i=0; i<dep.getLength(); i++) {
+				if(dep.item(i).getParentNode().getNodeName().equals(parentId)) {
+					nodeContent = dep.item(i).getTextContent();
+				}
+			}
+
+		} catch (ParserConfigurationException|SAXException|IOException e) {
+			e.printStackTrace();
+		} 
+		
+		return nodeContent;
+	}
+	
 	private boolean isRestApi(String path) {
 		boolean hasRestController = false;
 		boolean hasPostMapping = false;
 		boolean hasGetMapping = false;
-		
+ 		
 		Path rootPath = Paths.get(path + "\\src");
 		try {
 			List<String> files = this.findFiles(rootPath, "java");
@@ -98,8 +189,8 @@ public class AnalyzeService {
 			for(String filePath : files) {
 				 tempFile = new File(filePath);
 				 hasRestController = this.hasTextAndRegex(tempFile,"@RestController","^\\s*(public class " + tempFile.getName().replace(".java","") + ")\\s*\\{", null);
-				 hasPostMapping = this.hasTextAndRegex(tempFile, "@PostMapping", "^\\s*(public )(.*)", this.postMappingMethodsList);
-				 hasGetMapping = this.hasTextAndRegex(tempFile, "@GetMapping", "^\\s*(public )(.*)", this.getMappingMethodsList);
+				 hasPostMapping = this.hasTextAndRegex(tempFile, "@PostMapping", "^\\s*[^//](public )?(.*)\\s(.*)\\((.*)", this.postMappingMethodsList);
+				 hasGetMapping = this.hasTextAndRegex(tempFile, "@GetMapping", "^\\s*[^//](public )?(.*)\\s(.*)\\((.*)", this.getMappingMethodsList);
 				 if (hasRestController && (hasPostMapping || hasGetMapping)) break;
 			}
 			
@@ -111,13 +202,11 @@ public class AnalyzeService {
 	}
 	
 	/* Search in a file if there is a certain text and then if there is a line
-	 * that match the regular expression. If the ArrayList list isn't nul it stores methods's
+	 * that match the regular expression. If the ArrayList list isn't null it stores methods's
 	 * names of type text into list */
 	private boolean hasTextAndRegex(File file, String text, String regex, ArrayList<String> list) {
 		boolean returnable = false;
-		
 		boolean flag = false;
-		
 		boolean foundRegexLine = false;
 		
 		try(Scanner scanner = new Scanner(file)) {
@@ -131,9 +220,17 @@ public class AnalyzeService {
 		        	if(foundRegexLine) {
 		        		returnable = true;
 		        		if(list != null) {
+		        			if(!currLine.matches("(.*)\\ *\\((.*)\\)(.*)")) {
+		        				String line = currLine;
+		        				while(!currLine.matches("(.*)\\)") && !currLine.matches("(.*)\\)\\s*\\{")) {
+		        					currLine = scanner.nextLine();
+		        					line += currLine.replaceAll("\\t", "");
+		        				}
+		        				currLine = line;		        				
+		        			}
 		        			this.storeMethodsNames(currLine, list);
 			        		foundRegexLine = false;
-			        		flag = false;
+			        		flag = false;		        				
 		        		}
 		        		else break;
 		        	}
