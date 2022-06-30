@@ -24,12 +24,13 @@ public class AnalyzeController {
 	private File gitProjectsDirectory;
 	private String username;
 	private String password;
-	private Import myImportClass;
+	private Report myReportClass;
 	private boolean done;
+	private String pomXmlPath;
 	
 	@GetMapping("/service/{username}/{password}")
-	public Import analyze(@RequestParam(value = "url") String url, @PathVariable("username") String username, @PathVariable("password") String password) {
-		this.myImportClass = new Import();
+	public Report analyze(@RequestParam(value = "url") String url, @PathVariable("username") String username, @PathVariable("password") String password) {
+		this.myReportClass = new Report();
 		this.gitURL = url;
 		this.username = username;
 		this.password = password;
@@ -38,21 +39,50 @@ public class AnalyzeController {
 		this.gitProjectsDirectory.mkdir();
 		String analyzedProjectName = urlComponents[urlComponents.length-1].replaceAll(".git", "");
 		this.getGitRepo(analyzedProjectName);
-		String results = analyzeService.start(System.getProperty("user.dir") + "\\Git Projects\\" + analyzedProjectName) + " " + url;
-		this.myImportClass.updateMessage(results);
-		if(analyzeService.pushOnDocker()) {
-			this.dockerCommands(analyzedProjectName);
+		if(this.findFile(new File(System.getProperty("user.dir") + "\\Git Projects\\" + analyzedProjectName), "pom.xml")) {
+			String results = analyzeService.start(this.pomXmlPath, this.myReportClass);
+			this.myReportClass.updateMessage(results);
+			if(analyzeService.pushOnDocker()) {
+				this.dockerCommands(analyzedProjectName);
+			}
+			else {
+				System.out.println("Project doesn't fill the requirements");
+			}
+			try {
+				FileUtils.deleteDirectory(gitProjectsDirectory);
+			} catch (IOException e) {
+				System.out.println("Failed to delete \"Git Projects\" directory");
+			}
 		}
-		else {
-			System.out.println("Project doesn't fill the requirements");
-		}
-		try {
-			FileUtils.deleteDirectory(gitProjectsDirectory);
-		} catch (IOException e) {
-			System.out.println("Failed to delete \"Git Projects\" directory");
-		}
+		else
+			this.myReportClass.updateMessage("pom.xml file doesn't exists");
 		
-		return this.myImportClass;
+		
+		return this.myReportClass;
+	}
+	
+	//Searching for pom.xml inside directory "starting path"
+	private boolean findFile(File startingPath, String name) {
+		boolean found = false;
+		
+		File file = startingPath;
+		File[] list = file.listFiles();
+        if(list!=null)
+        for (File fil : list)
+        {
+            if (fil.isDirectory())
+            {
+            	found = this.findFile(fil, name);
+            }
+            else if (name.equalsIgnoreCase(fil.getName()))
+            {
+                found = true;
+                this.pomXmlPath = fil.getParentFile().getPath();
+            }
+            if(found) break;
+        }
+		
+		return found;
 	}
 	
 	private void dockerCommands(String analyzedProjectName) {
@@ -64,10 +94,10 @@ public class AnalyzeController {
 						+ "docker push " + imageName + " &&"												//docker push
 						+ "docker logout\"");																//docker logout
 				if(this.printProcessRun(proc, "Login Succeeded"))
-					this.myImportClass.updateMessage("Login Succeeded");
+					this.myReportClass.updateMessage("Login Succeeded");
 				if(this.done) {
-					this.myImportClass.setSuccess(true);
-					this.myImportClass.setUrl("docker.io" + imageName);
+					this.myReportClass.setSuccess(true);
+					this.myReportClass.setUrl("docker.io/" + imageName);
 				}
 				
 			} catch (IOException e) {
@@ -83,7 +113,11 @@ public class AnalyzeController {
 						+ "docker logout");																			//docker logout
 			    Process p1 = pbuilder1.start();
 				if(this.printProcessRun(p1, "Login Succeeded"))
-					this.myImportClass.updateMessage("Login Succeeded");
+					this.myReportClass.updateMessage("Login Succeeded");
+				if(this.done) {
+					this.myReportClass.setSuccess(true);
+					this.myReportClass.setUrl("docker.io/" + imageName);
+				}
 				
 			} catch (IOException e) {
 				e.printStackTrace();
@@ -102,17 +136,17 @@ public class AnalyzeController {
 			    		+ "mvn clean install\"");											//build maven project
 			    //If project's build fails at the tests
 			    if(this.printProcessRun(proc, "[INFO] BUILD FAILURE")) {
-			    	this.myImportClass.updateMessage("Build failure, trying without tests");
+			    	this.myReportClass.updateMessage("Build failure, trying without tests");
 			    	proc = Runtime.getRuntime().exec("cmd /c \"cd \"Git Projects\" && " 	//to change dir
 				    		+ "cd \"" + analyzedProjectName + "\" && "						//change dir
 				    		+ "mvn clean install -DskipTests\"");							//build maven project skipping tests
 			    	//If project's build fails even without tests
 			    	if(this.printProcessRun(proc, "[INFO] BUILD FAILURE")) {
-			    		this.myImportClass.updateMessage("Build failed!");
+			    		this.myReportClass.updateMessage("Build failed!");
 			    	}
 			    }
 			    else
-			    	this.myImportClass.updateMessage("Build success");
+			    	this.myReportClass.updateMessage("Build success");
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -126,18 +160,18 @@ public class AnalyzeController {
 			    Process p1 = pbuilder1.start();
 			    //If project's build fails at the tests
 			    if(this.printProcessRun(p1, "[INFO] BUILD FAILURE")) {
-			    	this.myImportClass.updateMessage("Build failure, trying without tests");
+			    	this.myReportClass.updateMessage("Build failure, trying without tests");
 			    	pbuilder1 = new ProcessBuilder("bash", "-c", "cd \"Git Projects\"; "			//to change dir
 							+ "cd \"" + analyzedProjectName + "\"; "								//change dir
 							+ "mvn clean install -DskipTests");													//build maven project skipping tests
 			    	p1 = pbuilder1.start();
 			    	//If project's build fails even without tests
 			    	if(this.printProcessRun(p1, "[INFO] BUILD FAILURE")) {
-			    		this.myImportClass.updateMessage("Build failed!");
+			    		this.myReportClass.updateMessage("Build failed!");
 			    	}
 			    }
 			    else
-			    	this.myImportClass.updateMessage("Build success");
+			    	this.myReportClass.updateMessage("Build success");
 		    } catch (IOException e) {
 		    	e.printStackTrace();
 		    }

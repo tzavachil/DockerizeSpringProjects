@@ -29,16 +29,18 @@ import org.xml.sax.SAXException;
 @Service
 public class AnalyzeService {
 
-	private ArrayList<String> postMappingMethodsList = new ArrayList<>();
-	private ArrayList<String> getMappingMethodsList = new ArrayList<>();
+	private ArrayList<MethodStructure> postMappingMethodsList = new ArrayList<>();
+	private ArrayList<MethodStructure> getMappingMethodsList = new ArrayList<>();
 	private String path;
 	private String result;
 	private boolean pushOnDocker = false;
+	private String controllerPath;
 	
-	public String start(String projectPath) {
+	public String start(String projectPath, Report myReport) {
 		
 		this.result = "";
 		this.path = projectPath;
+		this.controllerPath = "";
 		
 		File pomFile = new File(path + "\\pom.xml");
 		File dockerFile = new File(path + "\\Dockerfile");
@@ -79,12 +81,11 @@ public class AnalyzeService {
 		}
 		
 		System.out.println(this.result);
-		this.result += "Post Mapping Methods List, ";
 		System.out.println("Post Mapping Methods List");
-		this.result += this.printPostList();
-		this.result += "Get Mapping Methods List, ";
+		String methods = this.printPostList();
 		System.out.println("Get Mapping Methods List");
-		this.result += this.printGetList();
+		methods += ", " + this.printGetList();
+		myReport.updateMethods(methods);
 		
 		//Emptying Lists
 		this.postMappingMethodsList.clear();
@@ -194,10 +195,11 @@ public class AnalyzeService {
 	/* Search in a file if there is a certain text and then if there is a line
 	 * that match the regular expression. If the ArrayList list isn't null it stores methods's
 	 * names of type text into list */
-	private boolean hasTextAndRegex(File file, String text, String regex, ArrayList<String> list) {
+	private boolean hasTextAndRegex(File file, String text, String regex, ArrayList<MethodStructure> list) {
 		boolean returnable = false;
 		boolean flag = false;
 		boolean foundRegexLine = false;
+		String path = "";
 		
 		try(Scanner scanner = new Scanner(file)) {
 
@@ -218,14 +220,24 @@ public class AnalyzeService {
 		        				}
 		        				currLine = line;		        				
 		        			}
-		        			this.storeMethodsNames(currLine, list);
+		        			this.storeMethodsNames(currLine, path, list);
 			        		foundRegexLine = false;
 			        		flag = false;		        				
 		        		}
 		        		else break;
 		        	}
+		        	else {
+		        		if(currLine.matches("^\\s*(@.*Mapping)\\s*\\(.*\\)")) {
+		        			path = this.controllerPath + currLine.split("\"")[1];
+		        			this.controllerPath = path;
+		        			System.out.println("Controller Path = " + this.controllerPath);
+		        		}	
+		        	}
 		        }
 		    	if(currLine.contains(text) && currLine.matches("^\\s*" + text + "(.*)")) {	
+		    		if(currLine.matches(".*\\(.*\".*\".*\\).*")) {
+		    			path = this.controllerPath + currLine.split("\"")[1];		    			
+		    		}
 		    		flag = true;
 		    	}
 		    }
@@ -236,26 +248,24 @@ public class AnalyzeService {
 		return returnable;
 	}
 	
-	private void storeMethodsNames(String line, ArrayList<String> list) {
+	private void storeMethodsNames(String line, String path, ArrayList<MethodStructure> list) {
 		Pattern pattern = Pattern.compile("[^ ]*\\ *\\((.*)\\)");
 		Matcher matcher = pattern.matcher(line);
-		if(matcher.find()) list.add(matcher.group());
+		if(matcher.find()) list.add(new MethodStructure(matcher.group(), path));
 	}
 	
 	private String printPostList() {
 		String names = "";
-		for(String s : this.postMappingMethodsList) {
-			names += s + ", ";
-			System.out.println(s);
+		for(MethodStructure s : this.postMappingMethodsList) {
+			names += s.printData() + ", ";			
 		}
 		return names;
 	}
 	
 	private String printGetList() {
 		String names = "";
-		for(String s : this.getMappingMethodsList) {
-			names += s + ", ";
-			System.out.println(s);
+		for(MethodStructure s : this.getMappingMethodsList) {
+			names += s.printData() + ", ";
 		}
 		
 		return names;
