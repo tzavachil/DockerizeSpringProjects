@@ -58,7 +58,7 @@ public class AnalyzeService {
 					result += "Spring project is a Rest API\n";
 				}
 				// Checks if there is the Docker file in the project's root directory
-				if(false){//dockerFile.exists() && !dockerFile.isDirectory()) {
+				if(dockerFile.exists() && !dockerFile.isDirectory()) {
 					//System.out.println("Dockerfile found");
 					result += "Dockerfile found\n";
 				}
@@ -81,11 +81,14 @@ public class AnalyzeService {
 			result += "pom.xml file doesn't exist\n";
 		}
 		
+		//
+		
 		System.out.println(result);
 		System.out.println("Post Mapping Methods List");
 		this.printPostList();
 		System.out.println("Get Mapping Methods List");
 		this.printGetList();
+		
 		//Emptying Lists
 		this.postMappingMethodsList.clear();
 		this.getMappingMethodsList.clear();
@@ -107,44 +110,37 @@ public class AnalyzeService {
 				break;
 		}
 		dockerFileText += "ADD target/" + name + "-" + version + ".jar app.jar\n";
-		Path jarFolderPath = Paths.get(path + "\\jars");
-		if(Files.exists(jarFolderPath)) {
-			try {
-				List<String> jars = this.findFiles(jarFolderPath, "jar");
-				for(String s : jars) {
-					String[] tempList = s.split(Pattern.quote("\\"));
-					dockerFileText += "ADD jars/" + tempList[tempList.length-1] + " " + tempList[tempList.length-1] + "\n";
+		dockerFileText += "RUN chmod 755 app.jar\n";
+		
+		System.out.println("=====================");
+		File rootFolder = new File(this.path);
+		for(File file : rootFolder.listFiles()){
+			String fileName = file.getName();
+			if(!fileName.equals("target")) {
+				dockerFileText += "ADD " + fileName + " " + fileName + "\n";
+				dockerFileText += "RUN chmod ";
+				if(file.isDirectory()) {
+					dockerFileText += "-R ";
 				}
-			} catch (IOException e) {
-				e.printStackTrace();
+				dockerFileText += "755 /" + fileName + "\n";
 			}
-		}
-		dockerFileText += "ENDPOINT [\"java\", \"-jar\", \"/app.jar\"]";
+		}	
+		System.out.println("=====================");
+		
+		
+		dockerFileText += "ENTRYPOINT [\"java\", \"-jar\", \"/app.jar\"]";
 		
 		System.out.println("DockerFile Text : \n" + dockerFileText);
 		
-		this.storeDockerFile(dockerFileText, name);
+		this.storeDockerFile(dockerFileText);
 	}
-	
-	private void storeDockerFile(String text, String analyzedProjectName) {
-		String rootFolder = System.getProperty("user.dir");
-		
-		// Create folder to store DockerFiles
-		File dockerFilesFolder = new File(rootFolder + "/DockerFiles");
-		if(!Files.exists(Paths.get(rootFolder + "/DockerFiles"))) {
-			dockerFilesFolder.mkdir();
-		}
-		// Create subfolder specifically for this dockerfile
-		File dockerFileSubfolder = new File(rootFolder + "/DockerFiles/" + analyzedProjectName);
-		if(!Files.exists(Paths.get(rootFolder + "/DockerFiles/" + analyzedProjectName))){
-			dockerFileSubfolder.mkdir();
-		}
-		
-		// Create and store the dockerfile
+
+	// Create and store the dockerfile
+	private void storeDockerFile(String text) {		
 		try {
-			File dockerFile = new File(rootFolder + "/DockerFiles/" + analyzedProjectName + "/Dockerfile");
+			File dockerFile = new File(this.path + "/Dockerfile");
 			if(dockerFile.createNewFile()) {
-				FileWriter writer = new FileWriter(rootFolder + "/DockerFiles/" + analyzedProjectName + "/Dockerfile");
+				FileWriter writer = new FileWriter(this.path + "/Dockerfile");
 				writer.write(text);
 				writer.close();
 			}
