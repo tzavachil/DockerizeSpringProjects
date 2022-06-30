@@ -33,6 +33,11 @@ public class Report {
 	public void updateMessage(String message) {
 		this.message += message + ", ";
 	}
+	
+	//Delete last 2 characters from message
+	public void messageCorrection() {
+		this.message = this.message.substring(0, this.message.length() - 2);
+	}
 
 	public String getUrl() {
 		return url;

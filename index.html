@@ -1,0 +1,203 @@
+<html>
+	<head>
+		<title>Dockerize Spring Project</title>
+		<script type="text/javascript">
+			var ip = "172.30.144.1";
+			var port = "8080";
+			var url = "http://" + ip + ":" + port + "/api/analyze";
+			function checkProject(){
+				var xmlhttp = new XMLHttpRequest();
+				xmlhttp.open('GET', url + '/check?url=' + document.getElementById("gitUrl").value);
+				xmlhttp.setRequestHeader('Access-Control-Allow-Origin', "*");
+				document.getElementById('results').innerHTML = "Wait....";
+				xmlhttp.onreadystatechange = function() {
+					if(xmlhttp.readyState == 4 && xmlhttp.status === 200){
+						var result = JSON.parse(xmlhttp.responseText)
+						document.getElementById('results').innerHTML = " The result is: ";
+
+						document.getElementById('consoleMsgHeader').innerHTML = "Console Message";
+						document.getElementById('consoleMsg').innerHTML = result.message;
+						
+						document.getElementById('postMethods').innerHTML = "Post Methods";
+						document.getElementById('endpoint1').innerHTML = "Endpoint";
+						document.getElementById('method1').innerHTML = "Method";
+						document.getElementById('getMethods').innerHTML = "Get Methods";
+						document.getElementById('endpoint2').innerHTML = "Endpoint";
+						document.getElementById('method2').innerHTML = "Method";
+
+						document.getElementById('consoleMsgHeader').innerHTML = "Console Message";
+						document.getElementById('consoleMsg').innerHTML = result.message;
+						const arrayPostGet = result.methods.split("^");
+						//Post Methods
+						if(arrayPostGet[0] != " "){
+							const methodsArray = arrayPostGet[0].split("$");
+							const table = document.getElementById('tableBodyPost');
+							table.innerHTML = "";
+							methodsArray.forEach(element => {
+								if(element != " "){
+									const item = element.split(":");
+									let row = table.insertRow();
+									let endpoint = row.insertCell(0);
+									endpoint.innerHTML = item[1];
+									let methodName = row.insertCell(1);
+									methodName.innerHTML = item[0];
+								}
+							});
+						}
+						//Get Methods
+						if(arrayPostGet[1] != " "){
+							const methodsArray = arrayPostGet[1].split("$");
+							const table = document.getElementById('tableBodyGet');
+							table.innerHTML = "";
+							methodsArray.forEach(element => {
+								if(element != " "){
+									const item = element.split(":");
+									let row = table.insertRow();
+									let endpoint = row.insertCell(0);
+									endpoint.innerHTML = item[1];
+									let methodName = row.insertCell(1);
+									methodName.innerHTML = item[0];
+								}
+							});
+						}
+					}
+				}
+				xmlhttp.send();
+			}
+			function dockerize(){
+				var xmlhttp = new XMLHttpRequest();
+				xmlhttp.open('GET', url + '/service/' + document.getElementById("uname").value + '/' + document.getElementById("pass").value + '?url=' + document.getElementById("gitUrl").value);
+				xmlhttp.setRequestHeader('Access-Control-Allow-Origin', "*");
+				document.getElementById('results').innerHTML = "Wait....";
+				xmlhttp.onreadystatechange = function() {
+					if(xmlhttp.readyState == 4 && xmlhttp.status === 200){
+						var result = JSON.parse(xmlhttp.responseText)
+						document.getElementById('results').innerHTML = " The result is: ";
+						
+						document.getElementById('successHeader').innerHTML = "Success";
+						document.getElementById('success').innerHTML = result.success;
+
+						document.getElementById('consoleMsgHeader').innerHTML = "Console Message";
+						document.getElementById('consoleMsg').innerHTML = result.message;
+						
+						document.getElementById('dockerUrlHeader').innerHTML = "Docker url";
+						document.getElementById('dockerUrl').innerHTML = result.url;
+						
+						document.getElementById('postMethods').innerHTML = "Post Methods";
+						document.getElementById('endpoint1').innerHTML = "Endpoint";
+						document.getElementById('method1').innerHTML = "Method";
+						document.getElementById('getMethods').innerHTML = "Get Methods";
+						document.getElementById('endpoint2').innerHTML = "Endpoint";
+						document.getElementById('method2').innerHTML = "Method";
+
+						const arrayPostGet = result.methods.split("^");
+						//Post Methods
+						if(arrayPostGet[0] != " "){
+							const methodsArray = arrayPostGet[0].split("$");
+							const table = document.getElementById('tableBodyPost');
+							table.innerHTML = "";
+							methodsArray.forEach(element => {
+								if(element != " "){
+									const item = element.split(":");
+									let row = table.insertRow();
+									let endpoint = row.insertCell(0);
+									endpoint.innerHTML = item[1];
+									let methodName = row.insertCell(1);
+									methodName.innerHTML = item[0];
+								}
+							});
+						}
+						//Get Methods
+						if(arrayPostGet[1] != " "){
+							const methodsArray = arrayPostGet[1].split("$");
+							const table = document.getElementById('tableBodyGet');
+							table.innerHTML = "";
+							methodsArray.forEach(element => {
+								if(element != " "){
+									const item = element.split(":");
+									let row = table.insertRow();
+									let endpoint = row.insertCell(0);
+									endpoint.innerHTML = item[1];
+									let methodName = row.insertCell(1);
+									methodName.innerHTML = item[0];
+								}
+							});
+						}
+					}
+				}
+				xmlhttp.send();
+			}
+		</script>
+	</head>
+	<body>
+	
+		<table>
+			<tr>
+				<td>Project's Url from GitHub</td>
+				<td> <input id="gitUrl" type="url" style="width:500"> </td>
+				<td> <input type="button" name="checkBtn" value="Check" onclick="checkProject()"> </td>
+			</tr>
+			<tr>
+				<td colspan='3'> <hr> </td> 
+			</tr>
+			<tr>
+				<td colspan='3'> <h2>Docker Credentials </h2> </td> 
+			</tr>
+			<tr>
+				<td>Username</td>
+				<td colspan='2'> <input id="uname" type="text"> </td>
+			</tr>
+			<tr>
+				<td>Password</td>
+				<td colspan='2'> <input id="pass" type="password"> </td>
+			</tr>
+			<tr>
+				<td colspan='3'> 
+					<input type="button" name="analyzeBtn" value="Dockerize" onclick="dockerize()"> 
+				</td> 
+			</tr>
+			<tr>
+				<td colspan='3'> <hr> </td> 
+			</tr>
+		</table>
+		
+		<h1 id="results"></h1>
+		
+		<table style="text-align:left"> 
+			<tbody>
+				<tr>
+					<td> <h3 id="successHeader"></h3> </td>
+					<td id="success"></td>
+				</tr>
+				<tr>
+					<td> <h3 id="consoleMsgHeader"></h3> </td>
+					<td id="consoleMsg"></td>
+				</tr>
+				<tr>
+					<td> <h3 id="dockerUrlHeader"></h3> </td>
+					<td id="dockerUrl"></td>
+				</tr>
+			</tbody>
+			<thead>
+				<caption>
+					<th colspan="2" id="postMethods"></th>
+				</caption>
+				<tr> 
+					<th id="endpoint1"></th>
+					<th id="method1"></th>
+				</tr>
+			</thead>
+			<tbody id="tableBodyPost"></tbody>
+			<thead>
+				<caption>
+					<th colspan="2" id="getMethods"></th>
+				</caption>
+				<tr> 
+					<th id="endpoint2"></th>
+					<th id="method2"></th>
+				</tr>
+			</thead>
+			<tbody id="tableBodyGet"></tbody>							
+		</table>	
+	</body>
+</html>

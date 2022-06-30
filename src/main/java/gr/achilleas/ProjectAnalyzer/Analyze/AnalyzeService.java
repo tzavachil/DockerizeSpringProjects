@@ -33,7 +33,7 @@ public class AnalyzeService {
 	private ArrayList<MethodStructure> getMappingMethodsList = new ArrayList<>();
 	private String path;
 	private String result;
-	private boolean pushOnDocker = false;
+	private boolean pushOnDocker;
 	private String controllerPath;
 	
 	public String start(String projectPath, Report myReport) {
@@ -41,6 +41,7 @@ public class AnalyzeService {
 		this.result = "";
 		this.path = projectPath;
 		this.controllerPath = "";
+		this.pushOnDocker = false;
 		
 		File pomFile = new File(path + "\\pom.xml");
 		File dockerFile = new File(path + "\\Dockerfile");
@@ -80,11 +81,12 @@ public class AnalyzeService {
 			this.result += "pom.xml file doesn't exist, ";
 		}
 		
+		this.result = this.result.substring(0, this.result.length() - 2);
 		System.out.println(this.result);
 		System.out.println("Post Mapping Methods List");
 		String methods = this.printPostList();
 		System.out.println("Get Mapping Methods List");
-		methods += ", " + this.printGetList();
+		methods += "^" + this.printGetList();
 		myReport.updateMethods(methods);
 		
 		//Emptying Lists
@@ -172,17 +174,17 @@ public class AnalyzeService {
 		boolean hasRestController = false;
 		boolean hasPostMapping = false;
 		boolean hasGetMapping = false;
- 		
+		
 		Path rootPath = Paths.get(path + "\\src");
 		try {
 			List<String> files = this.findFiles(rootPath, "java");
 			File tempFile;
 			for(String filePath : files) {
-				 tempFile = new File(filePath);
-				 hasRestController = this.hasTextAndRegex(tempFile,"@RestController","^\\s*(public class " + tempFile.getName().replace(".java","") + ")\\s*\\{", null);
-				 hasPostMapping = this.hasTextAndRegex(tempFile, "@PostMapping", "^\\s*[^//](public )?(.*)\\s(.*)\\((.*)", this.postMappingMethodsList);
-				 hasGetMapping = this.hasTextAndRegex(tempFile, "@GetMapping", "^\\s*[^//](public )?(.*)\\s(.*)\\((.*)", this.getMappingMethodsList);
-				 if (hasRestController && (hasPostMapping || hasGetMapping)) break;
+				tempFile = new File(filePath);
+				hasRestController = this.hasTextAndRegex(tempFile,"@RestController","^\\s*(public class " + tempFile.getName().replace(".java","") + ")\\s*\\{", null);
+				hasPostMapping = this.hasTextAndRegex(tempFile, "@PostMapping", "^\\s*[^//](public )?(.*)\\s(.*)\\((.*)", this.postMappingMethodsList);
+				hasGetMapping = this.hasTextAndRegex(tempFile, "@GetMapping", "^\\s*[^//](public )?(.*)\\s(.*)\\((.*)", this.getMappingMethodsList);
+				if (hasRestController && (hasPostMapping || hasGetMapping)) break;
 			}
 			
 		} catch (IOException e) {
@@ -227,7 +229,7 @@ public class AnalyzeService {
 		        		else break;
 		        	}
 		        	else {
-		        		if(currLine.matches("^\\s*(@.*Mapping)\\s*\\(.*\\)")) {
+		        		if(currLine.matches("^\\s*(@.*Mapping)\\s*\\(path.*\\)")) {
 		        			path = this.controllerPath + currLine.split("\"")[1];
 		        			this.controllerPath = path;
 		        			System.out.println("Controller Path = " + this.controllerPath);
@@ -257,18 +259,18 @@ public class AnalyzeService {
 	private String printPostList() {
 		String names = "";
 		for(MethodStructure s : this.postMappingMethodsList) {
-			names += s.printData() + ", ";			
+			names += s.printData() + "$";			
 		}
-		return names;
+		return names.substring(0, names.length() - 1);
 	}
 	
 	private String printGetList() {
 		String names = "";
 		for(MethodStructure s : this.getMappingMethodsList) {
-			names += s.printData() + ", ";
+			names += s.printData() + "$";
 		}
 		
-		return names;
+		return names.substring(0, names.length() - 1);
 	}
 	
 	//Find files with a specified file extension
