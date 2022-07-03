@@ -261,7 +261,10 @@ public class AnalyzeService {
 		for(MethodStructure s : this.postMappingMethodsList) {
 			names += s.printData() + "$";			
 		}
-		return names.substring(0, names.length() - 1);
+		if(names.length()>0)
+			return names.substring(0, names.length() - 1);
+		
+		return names;
 	}
 	
 	private String printGetList() {
@@ -270,7 +273,10 @@ public class AnalyzeService {
 			names += s.printData() + "$";
 		}
 		
-		return names.substring(0, names.length() - 1);
+		if(names.length()>0)
+			return names.substring(0, names.length() - 1);
+		
+		return names;
 	}
 	
 	//Find files with a specified file extension
@@ -314,7 +320,11 @@ public class AnalyzeService {
 				
 			}
 			
-			flag = groupIds.contains("org.springframework.boot");
+			for(String s : groupIds) {
+				flag = s.contains("org.springframework");
+				if(flag) break;
+			}
+			
 
 		} catch (ParserConfigurationException|SAXException|IOException e) {
 			e.printStackTrace();
